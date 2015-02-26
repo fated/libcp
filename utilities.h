@@ -5,6 +5,7 @@
 #include <vector>
 #include <map>
 #include <cmath>
+#include <cstdarg>
 
 const double kInf = HUGE_VAL;
 const double kTau = 1e-12;
@@ -21,6 +22,12 @@ struct Problem {
   double *y;
   struct Node **x;
 };
+
+void PrintCout(const char *s);
+void PrintNull(const char *s);
+void Info(const char *format, ...);
+void SetPrintNull();
+void SetPrintCout();
 
 template <typename T>
 T FindMostFrequent(T *array, int size) {
@@ -88,5 +95,6 @@ void QuickSortIndex(T array[], size_t index[], size_t left, size_t right) {
 Problem *ReadProblem(const char *file_name);
 void FreeProblem(struct Problem *problem);
 void GroupClasses(const Problem *prob, int *num_classes_ret, int **labels_ret, int **start_ret, int **count_ret, int *perm);
+int *GetLabels(const Problem *prob, int *num_classes_ret);
 
 #endif  // LIBCP_UTILITIES_H_

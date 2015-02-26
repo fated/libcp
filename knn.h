@@ -5,6 +5,7 @@
 
 struct KNNParameter {
   int num_neighbors;
+  int is_cp;
 };
 
 struct KNNModel {
@@ -14,6 +15,8 @@ struct KNNModel {
   int *labels;  // label of each class (label[k])
   double **dist_neighbors;
   int **label_neighbors;
+  double **min_same;
+  double **min_diff;
 };
 
 template <typename T>

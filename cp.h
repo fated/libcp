@@ -3,33 +3,33 @@
 
 #include "utilities.h"
 #include "knn.h"
-#include "svm.h"
+#include <vector>
 
-enum { KNN, SVM_EL, SVM_ES, SVM_KM };
+enum { KNN };
 
 struct Parameter {
   struct KNNParameter *knn_param;
-  struct SVMParameter *svm_param;
+  int cp_type;
+  int measure_type;
   int save_model;
   int load_model;
-  int measure_type;
   int num_folds;
-  int probability;
+  double epsilon;
 };
 
 struct Model {
   struct Parameter param;
-  struct SVMModel *svm_model;
   struct KNNModel *knn_model;
   int num_ex;
   int num_classes;
   int *labels;
+  double *alpha;
 };
 
 Model *TrainCP(const struct Problem *train, const struct Parameter *param);
-double PredictCP(const struct Problem *train, const struct Model *model, const struct Node *x, double &lower, double &upper, double **avg_prob);
-void CrossValidation(const struct Problem *prob, const struct Parameter *param, double *predict_labels, double *lower_bounds, double *upper_bounds, double *brier, double *logloss);
-void OnlinePredict(const struct Problem *prob, const struct Parameter *param, double *predict_labels, int *indices, double *lower_bounds, double *upper_bounds, double *brier, double *logloss);
+std::vector<int> PredictCP(const struct Problem *train, const struct Model *model, const struct Node *x, double &conf, double &cred);
+void CrossValidation(const struct Problem *prob, const struct Parameter *param, std::vector<int> *predict_labels, double *conf, double *cred);
+void OnlinePredict(const struct Problem *prob, const struct Parameter *param, std::vector<int> *predict_labels, int *indices, double *conf, double *cred);
 
 int SaveModel(const char *model_file_name, const struct Model *model);
 Model *LoadModel(const char *model_file_name);
