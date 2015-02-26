@@ -259,7 +259,168 @@ void CrossValidation(const struct Problem *prob, const struct Parameter *param,
   return;
 }
 
-void OnlinePredict(const struct Problem *prob, const struct Parameter *param, std::vector<int> *predict_labels, int *indices, double *conf, double *cred) {
+void OnlinePredict(const struct Problem *prob, const struct Parameter *param,
+    std::vector<int> *predict_labels, int *indices, double *conf, double *cred) {
+  int num_ex = prob->num_ex;
+  int num_classes = 0;
+
+  for (int i = 0; i < num_ex; ++i) {
+    indices[i] = i;
+  }
+  std::random_device rd;
+  std::mt19937 g(rd());
+  std::shuffle(indices, indices+num_ex, g);
+
+  if (param->measure_type == KNN) {
+    int num_neighbors = param->knn_param->num_neighbors;
+    std::vector<int> labels;
+
+    double **min_same = new double*[num_ex];
+    double **min_diff = new double*[num_ex];
+    double *alpha = new double[num_ex];
+
+    for (int i = 0; i < num_ex; ++i) {
+      min_same[i] = new double[num_neighbors];
+      min_diff[i] = new double[num_neighbors];
+      for (int j = 0; j < num_neighbors; ++j) {
+        min_same[i][j] = kInf;
+        min_diff[i][j] = kInf;
+      }
+      alpha[i] = 0;
+    }
+
+    int this_label = static_cast<int>(prob->y[indices[0]]);
+    labels.push_back(this_label);
+    num_classes = 1;
+
+    for (int i = 1; i < num_ex; ++i) {
+      if (num_classes == 1)
+        std::cerr <<
+          "WARNING: training set only has one class. See README for details."
+                  << std::endl;
+
+      int *p_values = new int[num_classes];
+      for (int j = 0; j < num_classes; ++j) {
+        p_values[j] = 0;
+        double **min_same_ = new double*[i+1];
+        double **min_diff_ = new double*[i+1];
+        double *alpha_ = new double[i+1];
+
+        for (int j = 0; j < i; ++j) {
+          clone(min_same_[j], min_same[j], num_neighbors);
+          clone(min_diff_[j], min_diff[j], num_neighbors);
+          alpha_[j] = alpha[j];
+        }
+        min_same_[i] = new double[num_neighbors];
+        min_diff_[i] = new double[num_neighbors];
+        alpha_[i] = 0;
+        for (int j = 0; j < num_neighbors; ++j) {
+          min_same_[i][j] = kInf;
+          min_diff_[i][j] = kInf;
+        }
+        for (int k = 0; k < i; ++k) {
+          double dist = CalcDist(prob->x[indices[k]], prob->x[indices[i]]);
+
+          if (prob->y[indices[k]] == labels[static_cast<size_t>(j)]) {
+            int index = CompareDist(min_same_[k], dist, num_neighbors);
+            if (index < num_neighbors) {
+              alpha_[k] = CalcAlpha(min_same_[k], min_diff_[k], num_neighbors);
+            }
+            CompareDist(min_same_[i], dist, num_neighbors);
+          } else {
+            int index = CompareDist(min_diff_[k], dist, num_neighbors);
+            if (index < num_neighbors) {
+              alpha_[k] = CalcAlpha(min_same_[k], min_diff_[k], num_neighbors);
+            }
+            CompareDist(min_diff_[i], dist, num_neighbors);
+          }
+        }
+        alpha_[i] = CalcAlpha(min_same_[i], min_diff_[i], num_neighbors);
+
+        for (int k = 0; k < i+1; ++k) {
+          if (alpha_[k] >= alpha_[i]) {
+            ++p_values[j];
+          }
+        }
+
+        for (int j = 0; j < i+1; ++j) {
+          delete[] min_same_[j];
+          delete[] min_diff_[j];
+        }
+        delete[] min_same_;
+        delete[] min_diff_;
+        delete[] alpha_;
+      }
+
+      if (num_classes == 1) {
+        conf[i] = 1;
+        cred[i] = p_values[0] / (i+1);
+        predict_labels[i].push_back(labels[0]);
+      } else {
+        int best = 0;
+        cred[i] = p_values[0];
+        conf[i] = p_values[1];
+        for (int j = 1; j < num_classes; ++j) {
+          if (p_values[j] > cred[i]) {
+            conf[i] = cred[i];
+            cred[i] = p_values[j];
+            best = j;
+          } else if (p_values[j] < cred[i] && p_values[j] > conf[i]) {
+            conf[i] = p_values[j];
+          }
+        }
+        cred[i] = cred[i] / (i+1);
+        conf[i] = 1 - conf[i] / (i+1);
+        predict_labels[i].push_back(labels[static_cast<size_t>(best)]);
+      }
+
+      for (int j = 0; j < num_classes; ++j) {
+        if (static_cast<double>(p_values[j])/(i+1) > param->epsilon) {
+          predict_labels[i].push_back(labels[static_cast<size_t>(j)]);
+        }
+      }
+
+      delete[] p_values;
+
+      this_label = static_cast<int>(prob->y[indices[i]]);
+      std::size_t j;
+      for (j = 0; j < num_classes; ++j) {
+        if (this_label == labels[static_cast<size_t>(j)]) break;
+      }
+      if (j == num_classes) {
+        labels.push_back(this_label);
+        ++num_classes;
+      }
+
+      for (int j = 0; j < i; ++j) {
+        double dist = CalcDist(prob->x[indices[j]], prob->x[indices[i]]);
+        if (prob->y[indices[j]] == this_label) {
+          int index = CompareDist(min_same[j], dist, num_neighbors);
+          if (index < num_neighbors) {
+            alpha[j] = CalcAlpha(min_same[j], min_diff[j], num_neighbors);
+          }
+          CompareDist(min_same[i], dist, num_neighbors);
+        } else {
+          int index = CompareDist(min_diff[j], dist, num_neighbors);
+          if (index < num_neighbors) {
+            alpha[j] = CalcAlpha(min_same[j], min_diff[j], num_neighbors);
+          }
+          CompareDist(min_diff[i], dist, num_neighbors);
+        }
+      }
+      alpha[i] = CalcAlpha(min_same[i], min_diff[i], num_neighbors);
+    }
+
+    for (int i = 0; i < num_ex; ++i) {
+      delete[] min_same[i];
+      delete[] min_diff[i];
+    }
+    delete[] min_same;
+    delete[] min_diff;
+    delete[] alpha;
+    std::vector<int>(labels).swap(labels);
+  }
+
   return;
 }
 

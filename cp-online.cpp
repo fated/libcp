@@ -85,10 +85,10 @@ int main(int argc, char *argv[]) {
             << " (" << num_correct << '/' << prob->num_ex-1 << ") "
             << "Mean Confidence: " << std::fixed << std::setprecision(4) << 100*avg_conf << "%, "
             << "Mean Credibility: " << 100*avg_cred << "%\n";
-  std::cout << "Accuracy: " << 100.0*num_incl/prob->num_ex-1 << '%'
+  std::cout << "Accuracy: " << 100.0*num_incl/(prob->num_ex-1) << '%'
             << " (" << num_incl << '/' << prob->num_ex-1 << ") "
-            << "Multi Prediction: " << std::fixed << std::setprecision(4) << 100.0*num_multi/prob->num_ex-1 << "%, "
-            << "Empty Prediction: " << 100.0*num_empty/prob->num_ex-1 << "%\n";
+            << "Multi Prediction: " << std::fixed << std::setprecision(4) << 100.0*num_multi/(prob->num_ex-1) << "%, "
+            << "Empty Prediction: " << 100.0*num_empty/(prob->num_ex-1) << "%\n";
   output_file.close();
 
   std::cout << "Time cost: " << std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count()/1000.0 << " s\n";
