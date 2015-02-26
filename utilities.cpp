@@ -6,6 +6,32 @@
 #include <cmath>
 #include <exception>
 
+void (*PrintString) (const char *) = &PrintNull;
+
+void PrintCout(const char *s) {
+  std::cout << s;
+  std::cout.flush();
+}
+
+void PrintNull(const char *s) {}
+
+void Info(const char *format, ...) {
+  char buffer[BUFSIZ];
+  va_list ap;
+  va_start(ap, format);
+  vsprintf(buffer, format, ap);
+  va_end(ap);
+  (*PrintString)(buffer);
+}
+
+void SetPrintNull() {
+  PrintString = &PrintNull;
+}
+
+void SetPrintCout() {
+  PrintString = &PrintCout;
+}
+
 Problem *ReadProblem(const char *file_name) {
   std::ifstream input_file(file_name);
   if (!input_file.is_open()) {
@@ -34,7 +60,7 @@ Problem *ReadProblem(const char *file_name) {
 
     current_max_index = -1;
     std::getline(input_file, line);
-    while ((pos = line.find_first_of(" \t\n", prev)) != std::string::npos) {
+    while ((pos = line.find_first_of(" \t\n\r", prev)) != std::string::npos) {
       if (pos > prev) {
         tokens.push_back(line.substr(prev, pos-prev));
       }
@@ -55,7 +81,7 @@ Problem *ReadProblem(const char *file_name) {
     }
     catch(std::exception& e)
     {
-      std::cerr << "Error: " << e.what() << " in line " << (i+1) << std::endl;
+      std::cerr << "Error: " << e.what() << " in line " << (i+1) << " tokens " << tokens[0] << std::endl;
       delete[] problem->y;
       for (int j = 0; j < i; ++j) {
         delete[] problem->x[j];
@@ -86,7 +112,7 @@ Problem *ReadProblem(const char *file_name) {
       }
       catch(std::exception& e)
       {
-        std::cerr << "Error: " << e.what() << " in line " << (i+1) << std::endl;
+        std::cerr << "Error: " << e.what() << " in line " << (i+1) << " tokens " << tokens[j+1] << std::endl;
         delete[] problem->y;
         for (int j = 0; j < i+1; ++j) {
           delete[] problem->x[j];
@@ -139,33 +165,37 @@ void FreeProblem(struct Problem *problem) {
 // perm, length l, must be allocated before calling this subroutine
 void GroupClasses(const Problem *prob, int *num_classes_ret, int **labels_ret, int **start_ret, int **count_ret, int *perm) {
   int num_ex = prob->num_ex;
-  int max_num_classes = 16;
   int num_classes = 0;
-  int *labels = new int[max_num_classes];
-  int *count = new int[max_num_classes];
+  int *labels = NULL;
+  int *count = NULL;
   int *data_labels = new int[num_ex];
+  std::vector<int> unique_labels;
+  std::vector<int> counts;
 
   for (int i = 0; i < num_ex; ++i) {
     int this_label = static_cast<int>(prob->y[i]);
-    int j;
+    std::size_t j;
     for (j = 0; j < num_classes; ++j) {
-      if (this_label == labels[j]) {
-        ++count[j];
+      if (this_label == unique_labels[j]) {
+        ++counts[j];
         break;
       }
     }
-    data_labels[i] = j;
+    data_labels[i] = static_cast<int>(j);
     if (j == num_classes) {
-      if (num_classes == max_num_classes) {
-        max_num_classes *= 2;
-        labels = (int *)realloc(labels, (unsigned long)max_num_classes*sizeof(int));
-        count = (int *)realloc(count, (unsigned long)max_num_classes*sizeof(int));
-      }
-      labels[num_classes] = this_label;
-      count[num_classes] = 1;
+      unique_labels.push_back(this_label);
+      counts.push_back(1);
       ++num_classes;
     }
   }
+  labels = new int[num_classes];
+  count = new int[num_classes];
+  for (std::size_t i = 0; i < unique_labels.size(); ++i) {
+    labels[i] = unique_labels[i];
+    count[i] = counts[i];
+  }
+  std::vector<int>(unique_labels).swap(unique_labels);
+  std::vector<int>(counts).swap(counts);
 
   //
   // Labels are ordered by their first occurrence in the training set.
@@ -205,4 +235,33 @@ void GroupClasses(const Problem *prob, int *num_classes_ret, int **labels_ret, i
   delete[] data_labels;
 
   return;
+}
+
+int *GetLabels(const Problem *prob, int *num_classes_ret) {
+  int num_ex = prob->num_ex;
+  int num_classes = 0;
+  int *labels = NULL;
+  std::vector<int> unique_labels;
+
+  for (int i = 0; i < num_ex; ++i) {
+    int this_label = static_cast<int>(prob->y[i]);
+    std::size_t j;
+    for (j = 0; j < num_classes; ++j) {
+      if (this_label == unique_labels[j]) {
+        break;
+      }
+    }
+    if (j == num_classes) {
+      unique_labels.push_back(this_label);
+      ++num_classes;
+    }
+  }
+  labels = new int[num_classes];
+  for (std::size_t i = 0; i < unique_labels.size(); ++i) {
+    labels[i] = unique_labels[i];
+  }
+  std::vector<int>(unique_labels).swap(unique_labels);
+  *num_classes_ret = num_classes;
+
+  return labels;
 }
