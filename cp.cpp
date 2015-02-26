@@ -145,7 +145,117 @@ std::vector<int> PredictCP(const struct Problem *train, const struct Model *mode
   return predict_label;
 }
 
-void CrossValidation(const struct Problem *prob, const struct Parameter *param, std::vector<int> *predict_labels, double *conf, double *cred) {
+void CrossValidation(const struct Problem *prob, const struct Parameter *param,
+    std::vector<int> *predict_labels, double *conf, double *cred) {
+  int num_folds = param->num_folds;
+  int num_ex = prob->num_ex;
+  int num_classes;
+
+  int *fold_start;
+  int *perm = new int[num_ex];
+
+  if (num_folds > num_ex) {
+    num_folds = num_ex;
+    std::cerr << "WARNING: number of folds > number of data. Will use number of folds = number of data instead (i.e., leave-one-out cross validation)" << std::endl;
+  }
+  fold_start = new int[num_folds+1];
+
+  if (num_folds < num_ex) {
+    int *start = NULL;
+    int *label = NULL;
+    int *count = NULL;
+    GroupClasses(prob, &num_classes, &label, &start, &count, perm);
+
+    int *fold_count = new int[num_folds];
+    int *index = new int[num_ex];
+
+    for (int i = 0; i < num_ex; ++i) {
+      index[i] = perm[i];
+    }
+    std::random_device rd;
+    std::mt19937 g(rd());
+    for (int i = 0; i < num_classes; ++i) {
+      std::shuffle(index+start[i], index+start[i]+count[i], g);
+    }
+
+    for (int i = 0; i < num_folds; ++i) {
+      fold_count[i] = 0;
+      for (int c = 0; c < num_classes; ++c) {
+        fold_count[i] += (i+1)*count[c]/num_folds - i*count[c]/num_folds;
+      }
+    }
+
+    fold_start[0] = 0;
+    for (int i = 1; i <= num_folds; ++i) {
+      fold_start[i] = fold_start[i-1] + fold_count[i-1];
+    }
+    for (int c = 0; c < num_classes; ++c) {
+      for (int i = 0; i < num_folds; ++i) {
+        int begin = start[c] + i*count[c]/num_folds;
+        int end = start[c] + (i+1)*count[c]/num_folds;
+        for (int j = begin; j < end; ++j) {
+          perm[fold_start[i]] = index[j];
+          fold_start[i]++;
+        }
+      }
+    }
+    fold_start[0] = 0;
+    for (int i = 1; i <= num_folds; ++i) {
+      fold_start[i] = fold_start[i-1] + fold_count[i-1];
+    }
+    delete[] start;
+    delete[] label;
+    delete[] count;
+    delete[] index;
+    delete[] fold_count;
+
+  } else {
+
+    for (int i = 0; i < num_ex; ++i) {
+      perm[i] = i;
+    }
+    std::random_device rd;
+    std::mt19937 g(rd());
+    std::shuffle(perm, perm+num_ex, g);
+    fold_start[0] = 0;
+    for (int i = 1; i <= num_folds; ++i) {
+      fold_start[i] = fold_start[i-1] + (i+1)*num_ex/num_folds - i*num_ex/num_folds;
+    }
+  }
+
+  for (int i = 0; i < num_folds; ++i) {
+    int begin = fold_start[i];
+    int end = fold_start[i+1];
+    int k = 0;
+    struct Problem subprob;
+
+    subprob.num_ex = num_ex - (end-begin);
+    subprob.x = new Node*[subprob.num_ex];
+    subprob.y = new double[subprob.num_ex];
+
+    for (int j = 0; j < begin; ++j) {
+      subprob.x[k] = prob->x[perm[j]];
+      subprob.y[k] = prob->y[perm[j]];
+      ++k;
+    }
+    for (int j = end; j < num_ex; ++j) {
+      subprob.x[k] = prob->x[perm[j]];
+      subprob.y[k] = prob->y[perm[j]];
+      ++k;
+    }
+
+    Model *submodel = TrainCP(&subprob, param);
+
+    for (int j = begin; j < end; ++j) {
+      predict_labels[perm[j]] = PredictCP(&subprob, submodel, prob->x[perm[j]], conf[perm[j]], cred[perm[j]]);
+    }
+    FreeModel(submodel);
+    delete[] subprob.x;
+    delete[] subprob.y;
+  }
+  delete[] fold_start;
+  delete[] perm;
+
   return;
 }
 
