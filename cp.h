@@ -29,6 +29,7 @@ struct Model {
 Model *TrainCP(const struct Problem *train, const struct Parameter *param);
 std::vector<int> PredictCP(const struct Problem *train, const struct Model *model, const struct Node *x, double &conf, double &cred);
 void CrossValidation(const struct Problem *prob, const struct Parameter *param, std::vector<int> *predict_labels, double *conf, double *cred);
+void OnlinePredict(const struct Problem *prob, const struct Parameter *param, std::vector<int> *predict_labels, int *indices, double *conf, double *cred);
 
 int SaveModel(const char *model_file_name, const struct Model *model);
 Model *LoadModel(const char *model_file_name);
