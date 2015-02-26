@@ -145,6 +145,10 @@ std::vector<int> PredictCP(const struct Problem *train, const struct Model *mode
   return predict_label;
 }
 
+void CrossValidation(const struct Problem *prob, const struct Parameter *param, std::vector<int> *predict_labels, double *conf, double *cred) {
+  return;
+}
+
 static const char *kMeasureTypeTable[] = { "knn", NULL };
 
 int SaveModel(const char *model_file_name, const struct Model *model) {
