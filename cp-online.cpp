@@ -104,7 +104,7 @@ int main(int argc, char *argv[]) {
 }
 
 void ExitWithHelp() {
-  std::cout << "Usage: vm-online [options] data_file [output_file]\n"
+  std::cout << "Usage: cp-online [options] data_file [output_file]\n"
             << "options:\n"
             << "  -t non-conformity measure : set type of NCM (default 0)\n"
             << "    0 -- k-nearest neighbors (KNN)\n"
